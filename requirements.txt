@@ -1,0 +1,25 @@
+# LEGOLAS ZnS(1-x)Se(x) DSSC Optimization
+# Requirements for Python 3.8+
+
+# Core scientific computing
+numpy>=1.21.0
+pandas>=1.3.0
+scipy>=1.7.0
+
+# Machine learning
+scikit-learn>=1.0.0
+
+# Visualization
+matplotlib>=3.4.0
+
+# Web requests (for AFLOW API)
+requests>=2.25.0
+
+# Optional: Hardware interface (Raspberry Pi only)
+# Uncomment if using MCP3008 ADC hardware mode
+# spidev>=3.5
+# RPi.GPIO>=0.7.0
+
+# Optional: Advanced features
+# GPy>=1.10.0  # Alternative GP implementation
+# jupyter>=1.0.0  # For notebook interface
