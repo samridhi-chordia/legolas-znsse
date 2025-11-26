@@ -562,7 +562,7 @@ for i in range(4):  # 4 Raspberry Pi devices
 
 - **Installation Guide**: See README_INSTALLATION.md
 - **Functional Overview**: See README.md
-- **Contact**: corey@jhu.edu
+- **Contact**: schordi2@jhu.edu | samridhichordia@gmail.com
 
 ---
 
