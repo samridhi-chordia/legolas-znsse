@@ -1,0 +1,24 @@
+# Bayesian Optimization Results
+# Generated: 2025-12-14 01:02:29
+# Method: Gaussian Process with Expected Improvement
+# Kernel: 2.03**2 * RBF(length_scale=1.09) + WhiteKernel(noise_level=0.0282)
+# 
+# Columns:
+#   iteration - Measurement order (0-9)
+#   x_Se      - Selenium composition
+#   Eg_eV     - Bandgap energy (eV)
+#   Voc_V     - Measured open-circuit voltage (V)
+#   phase     - random (0-9) or gp_guided (10+)
+#   is_best   - True for optimal composition found
+# 
+iteration,x_Se,Eg_eV,Voc_V,phase,is_best
+0,0.374540,3.195821,0.768503,random,False
+1,0.155995,3.461295,0.822632,random,False
+2,0.058084,3.595723,0.842398,random,False
+3,0.708073,2.882736,0.742764,random,False
+4,0.000000,3.680000,0.847554,random,False
+5,1.000000,2.700000,0.710674,random,False
+6,0.000000,3.680000,0.847615,random,False
+7,0.000000,3.680000,0.847591,random,False
+8,0.000000,3.680000,0.854668,random,True
+9,0.000000,3.680000,0.833116,random,False
