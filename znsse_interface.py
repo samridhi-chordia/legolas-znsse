@@ -227,6 +227,142 @@ class ZnSSeInterface:
         x_S = 1.0 - x_Se
         return f"ZnS{x_S:.2f}Se{x_Se:.2f}"
 
+    def export_vegard_data(self, n_points: int = 100, output_path=None):
+        """
+        Export Vegard's law bandgap data to CSV.
+
+        Parameters:
+        -----------
+        n_points : int
+            Number of composition points to sample
+        output_path : str or Path, optional
+            Path to save CSV. If None, returns DataFrame only
+
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame with columns: x_Se, Eg_eV, Eg_TiO2
+        """
+        import pandas as pd
+        from datetime import datetime
+        from pathlib import Path
+
+        # Generate composition range
+        x_Se_range = np.linspace(0.0, 1.0, n_points)
+
+        # Calculate bandgaps using existing compute_bandgap method
+        bandgaps = []
+        for x_Se in x_Se_range:
+            Eg, _ = self.compute_bandgap(x_Se)
+            bandgaps.append(Eg)
+
+        # Create DataFrame
+        df = pd.DataFrame({
+            'x_Se': x_Se_range,
+            'Eg_eV': bandgaps,
+            'Eg_TiO2': self.Eg_TiO2  # constant reference
+        })
+
+        # Export to CSV if path provided
+        if output_path is not None:
+            csv_path = Path(output_path)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write metadata header
+            with open(csv_path, 'w') as f:
+                f.write(f"# Vegard's Law Bandgap Data\n")
+                f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# \n")
+                f.write(f"# Material: ZnS(1-x)Se(x)\n")
+                f.write(f"# Eg_ZnS = {self.Eg_ZnS:.2f} eV\n")
+                f.write(f"# Eg_ZnSe = {self.Eg_ZnSe:.2f} eV\n")
+                f.write(f"# Bowing parameter b = {self.bowing:.2f} eV\n")
+                f.write(f"# \n")
+                f.write(f"# Equation: Eg(x) = (1-x)*Eg_ZnS + x*Eg_ZnSe - b*x*(1-x)\n")
+                f.write(f"# \n")
+                f.write(f"# Columns:\n")
+                f.write(f"#   x_Se    - Selenium composition (0=ZnS, 1=ZnSe)\n")
+                f.write(f"#   Eg_eV   - Bandgap energy (eV)\n")
+                f.write(f"#   Eg_TiO2 - Reference TiO2 bandgap ({self.Eg_TiO2} eV)\n")
+                f.write(f"# \n")
+
+            # Append data
+            df.to_csv(csv_path, mode='a', index=False, float_format='%.6f')
+            print(f"✓ Vegard data saved: {csv_path}")
+
+        return df
+
+    def export_composition_space(self, n_points: int = 50, output_path=None,
+                                 light_intensity: float = 1.0):
+        """
+        Export complete composition space (bandgap + voltage) to CSV.
+
+        Parameters:
+        -----------
+        n_points : int
+            Number of composition points to sample
+        output_path : str or Path, optional
+            Path to save CSV
+        light_intensity : float
+            Light intensity for voltage calculation (1.0 = full sun)
+
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame with composition space data
+        """
+        import pandas as pd
+        from datetime import datetime
+        from pathlib import Path
+
+        # Generate composition range
+        x_Se_range = np.linspace(0.0, 1.0, n_points)
+
+        # Calculate bandgaps and voltages
+        data = []
+        for x_Se in x_Se_range:
+            measurement = self.measure_voltage(x_Se, light_intensity=light_intensity)
+            data.append({
+                'x_Se': x_Se,
+                'Eg_eV': measurement['Eg_eV'],
+                'Voc_V': measurement['Voc_V']
+            })
+
+        # Create DataFrame with derived columns
+        df = pd.DataFrame(data)
+        df['Voc_noise_lower_V'] = df['Voc_V'] - 0.01
+        df['Voc_noise_upper_V'] = df['Voc_V'] + 0.01
+        df['Eg_TiO2'] = self.Eg_TiO2
+        df['optimal_region'] = df['x_Se'] < 0.1
+
+        # Export to CSV if path provided
+        if output_path is not None:
+            csv_path = Path(output_path)
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Write metadata header
+            with open(csv_path, 'w') as f:
+                f.write(f"# Composition Space Data (Bandgap + Voltage)\n")
+                f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# Mode: {self.mode}\n")
+                f.write(f"# Light intensity: {light_intensity} (1.0 = full sun)\n")
+                f.write(f"# \n")
+                f.write(f"# Columns:\n")
+                f.write(f"#   x_Se               - Selenium composition\n")
+                f.write(f"#   Eg_eV              - Bandgap energy (eV)\n")
+                f.write(f"#   Voc_V              - Open-circuit voltage (V)\n")
+                f.write(f"#   Voc_noise_lower_V  - Voltage - 10 mV (noise band)\n")
+                f.write(f"#   Voc_noise_upper_V  - Voltage + 10 mV (noise band)\n")
+                f.write(f"#   Eg_TiO2            - Reference TiO2 bandgap\n")
+                f.write(f"#   optimal_region     - True if x_Se < 0.1\n")
+                f.write(f"# \n")
+
+            # Append data
+            df.to_csv(csv_path, mode='a', index=False, float_format='%.6f')
+            print(f"✓ Composition space data saved: {csv_path}")
+
+        return df
+
     def measure_voltage(self, x_Se: float, light_intensity: float = 1.0) -> Dict:
         """
         Measure open-circuit voltage (Voc) for given composition.

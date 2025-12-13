@@ -88,7 +88,8 @@ class GPOptimizer:
     5. Iterate until convergence
     """
 
-    def __init__(self, interface: ZnSSeInterface, xi: float = 0.01, random_state: int = 42):
+    def __init__(self, interface: ZnSSeInterface, xi: float = 0.01, random_state: int = 42, n_candidates: int = 100,
+                 save_figures: bool = False, save_data: bool = False, output_dir: str = 'results'):
         """
         Initialize GP optimizer.
 
@@ -100,10 +101,24 @@ class GPOptimizer:
             Exploration parameter for Expected Improvement (default: 0.01)
         random_state : int
             Random seed for reproducibility
+        n_candidates : int
+            Number of candidate points for acquisition function optimization (default: 100)
+        save_figures : bool
+            Save figures to output directory (default: False)
+        save_data : bool
+            Export CSV data files (default: False)
+        output_dir : str
+            Output directory for figures and data (default: 'results')
         """
+        from pathlib import Path
+
         self.interface = interface
         self.xi = xi
         self.random_state = random_state
+        self.n_candidates = n_candidates
+        self.save_figures = save_figures
+        self.save_data = save_data
+        self.output_dir = Path(output_dir)
         np.random.seed(random_state)
 
         # Optimization history
@@ -114,6 +129,14 @@ class GPOptimizer:
 
         # GP model
         self.gp_model = None
+
+        # Pre-compute candidate grid (optimization: compute once, not every iteration)
+        print(f"[GP Optimizer] Pre-computing bandgap grid for {n_candidates} candidates...")
+        self.x_Se_candidates = np.linspace(0.0, 1.0, n_candidates)
+        self.Eg_candidates = np.array([
+            self.interface.compute_bandgap(x)[0] for x in self.x_Se_candidates
+        ]).reshape(-1, 1)
+        print(f"[GP Optimizer] Bandgap grid: {self.Eg_candidates.min():.2f} to {self.Eg_candidates.max():.2f} eV")
 
         print(f"[GP Optimizer] Initialized with xi={xi}")
 
@@ -204,40 +227,27 @@ class GPOptimizer:
 
         return ei
 
-    def _propose_next_composition(self, n_candidates: int = 100) -> float:
+    def _propose_next_composition(self) -> float:
         """
         Propose next composition to test using Expected Improvement.
 
         Strategy:
-        1. Generate candidate bandgaps uniformly in range
+        1. Use pre-computed bandgap grid (self.Eg_candidates)
         2. Evaluate Expected Improvement for each
         3. Select bandgap with highest EI
         4. Map bandgap back to composition
-
-        Parameters:
-        -----------
-        n_candidates : int
-            Number of candidate points to evaluate
 
         Returns:
         --------
         x_Se_next : float
             Next composition to test
         """
-        # Generate candidate compositions
-        x_Se_candidates = np.linspace(0.0, 1.0, n_candidates)
-
-        # Convert to bandgaps (extract Eg from tuple [Eg, source])
-        Eg_candidates = np.array([
-            self.interface.compute_bandgap(x)[0] for x in x_Se_candidates
-        ]).reshape(-1, 1)
-
-        # Evaluate Expected Improvement
-        ei_values = self._expected_improvement(Eg_candidates)
+        # Evaluate Expected Improvement using pre-computed bandgaps
+        ei_values = self._expected_improvement(self.Eg_candidates)
 
         # Select best candidate
         best_idx = np.argmax(ei_values)
-        x_Se_next = x_Se_candidates[best_idx]
+        x_Se_next = self.x_Se_candidates[best_idx]
         ei_best = ei_values[best_idx]
 
         print(f"[GP Optimizer] Next composition: x_Se = {x_Se_next:.3f} (EI = {ei_best:.4f})")
@@ -314,6 +324,9 @@ class GPOptimizer:
         results_df : pd.DataFrame
             Optimization history with all measurements
         """
+        # Store n_initial for use in plotting methods
+        self.n_initial = n_initial
+
         print("\n" + "="*60)
         print("LEGOLAS ZnS(1-x)Se(x) Optimization")
         print("="*60)
@@ -389,18 +402,19 @@ class GPOptimizer:
 
         return results_df
 
-    def plot_results(self, save_path: Optional[str] = None):
+    def plot_results(self, save_path: Optional[str] = None, export_csv: Optional[str] = None):
         """
         Visualize optimization results.
 
-        Creates two plots:
-        1. Voltage vs Bandgap with GP fit
-        2. Voltage vs Composition with tested points
+        Creates single plot: Voltage vs Bandgap with GP fit
 
         Parameters:
         -----------
         save_path : str, optional
             Path to save figure
+        export_csv : str, optional
+            Path to save CSV data. If None, use self.save_data flag
+            and derive from save_path
         """
         try:
             import matplotlib.pyplot as plt
@@ -408,16 +422,16 @@ class GPOptimizer:
             print("[GP Optimizer] matplotlib not available for plotting")
             return
 
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+        # Create single plot (only Panel A - GP Model)
+        fig, ax = plt.subplots(1, 1, figsize=(6, 4))
 
-        # Plot 1: Voltage vs Bandgap with GP fit
         X_plot = np.linspace(2.6, 3.8, 100).reshape(-1, 1)
 
         if self.gp_model is not None:
             mu, sigma = self.gp_model.predict(X_plot, return_std=True)
 
-            ax1.plot(X_plot, mu, 'b-', label='GP mean', linewidth=2)
-            ax1.fill_between(
+            ax.plot(X_plot, mu, 'b-', label='GP mean', linewidth=2)
+            ax.fill_between(
                 X_plot.ravel(),
                 mu - 1.96*sigma,
                 mu + 1.96*sigma,
@@ -425,47 +439,207 @@ class GPOptimizer:
                 label='95% confidence'
             )
 
-        ax1.scatter(self.X_bandgaps, self.y_voltages, c='red', s=100,
+        ax.scatter(self.X_bandgaps, self.y_voltages, c='red', s=100,
                    marker='o', edgecolors='black', label='Measurements', zorder=5)
-        ax1.set_xlabel('Bandgap (eV)')
-        ax1.set_ylabel('Open-Circuit Voltage (V)')
-        ax1.set_title('GP Model: Voltage vs Bandgap')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
 
         # Mark TiO2 reference
-        ax1.axvline(self.interface.Eg_TiO2, color='green', linestyle='--',
-                   alpha=0.5, label='TiO2')
+        ax.axvline(self.interface.Eg_TiO2, color='green', linestyle='--',
+                   linewidth=1.5, alpha=0.7, label='$\mathrm{TiO}_2$')
 
-        # Plot 2: Voltage vs Composition
-        colors = plt.cm.viridis(np.linspace(0, 1, len(self.x_compositions)))
-
-        ax2.scatter(self.x_compositions, self.y_voltages, c=colors, s=100,
-                   marker='o', edgecolors='black', zorder=5)
-
-        # Add iteration numbers
-        for i, (x, y) in enumerate(zip(self.x_compositions, self.y_voltages)):
-            ax2.annotate(f'{i+1}', (x, y), xytext=(5, 5),
-                        textcoords='offset points', fontsize=8)
-
-        ax2.set_xlabel('Se Composition (x_Se)')
-        ax2.set_ylabel('Open-Circuit Voltage (V)')
-        ax2.set_title('Voltage vs Composition')
-        ax2.grid(True, alpha=0.3)
-        ax2.set_xlim(-0.05, 1.05)
-
-        # Add labels for endpoints
-        ax2.text(0.02, 0.95, 'ZnS', transform=ax2.transAxes,
-                verticalalignment='top', fontsize=9, style='italic')
-        ax2.text(0.98, 0.95, 'ZnSe', transform=ax2.transAxes,
-                verticalalignment='top', horizontalalignment='right',
-                fontsize=9, style='italic')
+        ax.set_xlabel('Bandgap (eV)', fontsize=11)
+        ax.set_ylabel('Open-Circuit Voltage (V)', fontsize=11)
+        ax.set_title('Gaussian Process Regression Model', fontsize=12)
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
 
         if save_path:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"[GP Optimizer] Figure saved to: {save_path}")
+
+        # Export CSV data if requested
+        if self.save_data or export_csv is not None:
+            from pathlib import Path
+            from datetime import datetime
+
+            # Determine CSV path
+            if export_csv is not None:
+                csv_path = Path(export_csv)
+            elif save_path is not None:
+                csv_path = Path(save_path).parent.parent / 'data' / 'optimization_trajectory.csv'
+            else:
+                csv_path = self.output_dir / 'data' / 'optimization_trajectory.csv'
+
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Determine n_initial from results (first phase is random)
+            n_initial = len([r for r in self.results if r.acquisition_value is None])
+
+            # Export optimization trajectory
+            df_export = pd.DataFrame({
+                'iteration': range(len(self.X_bandgaps)),
+                'x_Se': self.x_compositions,
+                'Eg_eV': self.X_bandgaps,
+                'Voc_V': self.y_voltages,
+                'phase': ['random' if i < n_initial else 'gp_guided'
+                          for i in range(len(self.X_bandgaps))]
+            })
+            df_export['is_best'] = df_export['Voc_V'] == df_export['Voc_V'].max()
+
+            with open(csv_path, 'w') as f:
+                f.write(f"# Bayesian Optimization Results\n")
+                f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# Method: Gaussian Process with Expected Improvement\n")
+                if self.gp_model is not None:
+                    f.write(f"# Kernel: {self.gp_model.kernel_}\n")
+                f.write(f"# \n")
+                f.write(f"# Columns:\n")
+                f.write(f"#   iteration - Measurement order (0-{len(self.X_bandgaps)-1})\n")
+                f.write(f"#   x_Se      - Selenium composition\n")
+                f.write(f"#   Eg_eV     - Bandgap energy (eV)\n")
+                f.write(f"#   Voc_V     - Measured open-circuit voltage (V)\n")
+                f.write(f"#   phase     - random (0-{n_initial-1}) or gp_guided ({n_initial}+)\n")
+                f.write(f"#   is_best   - True for optimal composition found\n")
+                f.write(f"# \n")
+
+            df_export.to_csv(csv_path, mode='a', index=False, float_format='%.6f')
+            print(f"✓ Data saved: {csv_path}")
+
+            # Also export GP predictions if model is trained
+            if self.gp_model is not None:
+                csv_pred = csv_path.parent / 'gp_regression_predictions.csv'
+                X_plot_export = np.linspace(2.6, 3.8, 100).reshape(-1, 1)
+                mu, sigma = self.gp_model.predict(X_plot_export, return_std=True)
+
+                df_pred = pd.DataFrame({
+                    'Eg_eV': X_plot_export.ravel(),
+                    'Voc_mean_V': mu,
+                    'Voc_std_V': sigma,
+                    'Voc_ci_lower_V': mu - 1.96*sigma,
+                    'Voc_ci_upper_V': mu + 1.96*sigma
+                })
+
+                with open(csv_pred, 'w') as f:
+                    f.write(f"# Gaussian Process Model Predictions\n")
+                    f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"# Training points: {len(self.X_bandgaps)}\n")
+                    f.write(f"# \n")
+                    f.write(f"# Columns:\n")
+                    f.write(f"#   Eg_eV          - Bandgap energy (eV)\n")
+                    f.write(f"#   Voc_mean_V     - GP predicted mean voltage (V)\n")
+                    f.write(f"#   Voc_std_V      - Prediction uncertainty (std dev)\n")
+                    f.write(f"#   Voc_ci_lower_V - 95% CI lower bound (V)\n")
+                    f.write(f"#   Voc_ci_upper_V - 95% CI upper bound (V)\n")
+                    f.write(f"# \n")
+
+                df_pred.to_csv(csv_pred, mode='a', index=False, float_format='%.6f')
+                print(f"✓ Data saved: {csv_pred}")
+
+        return fig
+
+    def plot_optimization_convergence(self, save_path: Optional[str] = None):
+        """
+        Visualize optimization convergence trajectory (2-panel figure).
+
+        Panel A: Voltage vs. iteration (orange = random, blue = GP-guided)
+        Panel B: Composition space exploration (numbered points 1-10)
+
+        Parameters:
+        -----------
+        save_path : str, optional
+            Path to save figure (PDF/PNG)
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            print("[GP Optimizer] matplotlib not available for plotting")
+            return
+
+        # Create 2-panel figure
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+        # Panel A: Voltage vs. Iteration
+        ax1.text(-0.15, 1.05, 'A', transform=ax1.transAxes,
+                fontsize=16, fontweight='bold', va='top')
+
+        iterations = np.arange(len(self.y_voltages))
+
+        # Split into random exploration and GP-guided phases
+        random_indices = iterations < self.n_initial
+        gp_indices = iterations >= self.n_initial
+
+        # Plot random exploration (orange)
+        ax1.scatter(iterations[random_indices],
+                   np.array(self.y_voltages)[random_indices],
+                   c='orange', s=100, marker='o', edgecolors='black',
+                   label='Random exploration', zorder=5)
+
+        # Plot GP-guided optimization (blue)
+        ax1.scatter(iterations[gp_indices],
+                   np.array(self.y_voltages)[gp_indices],
+                   c='blue', s=100, marker='o', edgecolors='black',
+                   label='GP-guided', zorder=5)
+
+        # Connect points with line
+        ax1.plot(iterations, self.y_voltages, 'k--', alpha=0.3, linewidth=1)
+
+        # Mark best point
+        best_idx = np.argmax(self.y_voltages)
+        ax1.scatter(best_idx, self.y_voltages[best_idx],
+                   c='green', s=300, marker='*', edgecolors='black',
+                   label='Best', zorder=10)
+
+        ax1.set_xlabel('Iteration', fontsize=11)
+        ax1.set_ylabel('Open-Circuit Voltage (V)', fontsize=11)
+        ax1.set_title('Optimization Convergence', fontsize=12)
+        ax1.legend(fontsize=9)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xlim(-0.5, len(iterations)-0.5)
+
+        # Panel B: Composition Space Exploration
+        ax2.text(-0.15, 1.05, 'B', transform=ax2.transAxes,
+                fontsize=16, fontweight='bold', va='top')
+
+        # Plot all points with same color, numbered labels
+        # Use different colors for random vs GP-guided phases
+        for i, (x, Eg) in enumerate(zip(self.x_compositions, self.X_bandgaps)):
+            if i < self.n_initial:
+                # Random exploration - orange
+                color = 'orange'
+            else:
+                # GP-guided - blue
+                color = 'blue'
+
+            # Plot point
+            ax2.scatter(x, Eg, c=color, s=100, marker='o',
+                       edgecolors='black', linewidth=1.5, zorder=5)
+
+            # Add iteration number label (1-indexed for readability)
+            ax2.text(x, Eg, f'{i+1}', fontsize=8, ha='center', va='center',
+                    color='white', weight='bold', zorder=6)
+
+        # Mark best point with star
+        ax2.scatter(self.x_compositions[best_idx], self.X_bandgaps[best_idx],
+                   c='red', s=300, marker='*', edgecolors='black',
+                   label='Optimal', zorder=10)
+
+        # Add TiO2 reference line
+        ax2.axhline(self.interface.Eg_TiO2, color='green', linestyle='--',
+                   linewidth=1.5, alpha=0.7, label='$\mathrm{TiO}_2$')
+
+        ax2.set_xlabel('Se Composition ($x_{Se}$)', fontsize=11)
+        ax2.set_ylabel('Bandgap (eV)', fontsize=11)
+        ax2.set_title('Composition Space Exploration', fontsize=12)
+        ax2.legend(fontsize=9)
+        ax2.grid(True, alpha=0.3)
+        ax2.set_xlim(-0.05, 1.05)
+
+        plt.tight_layout()
+
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f"[GP Optimizer] Optimization convergence figure saved to: {save_path}")
 
         return fig
 

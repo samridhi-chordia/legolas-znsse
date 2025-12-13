@@ -47,7 +47,7 @@
 \newcommand{\znsse}{\ce{ZnS_{1-x}Se_x}}
 \newcommand{\zns}{\ce{ZnS}}
 \newcommand{\znse}{\ce{ZnSe}}
-\newcommand{\tio}{\ce{TiO2}}
+\newcommand{\tio}{\ce{TiO_2}}
 \newcommand{\voc}{$V_{\text{oc}}$}
 \newcommand{\jsc}{$J_{\text{sc}}$}
 \newcommand{\eg}{$E_g$}
@@ -73,7 +73,7 @@ Corey Oses\textsuperscript{1,*}\\
 \maketitle
 
 \begin{abstract}
-We present a machine-learning based framework using Gaussian Regression with Bayesian Optimization to accelerate the discovery of optimal semiconductor compositions in dye-sensitized solar cells (DSSCs). Using the LEGOLAS (Low-cost Educational Guided Optimization Lab for Autonomous Science) platform, we demonstrate efficient optimization of \znsse{} alloy composition for photoanode applications. This fully closed loop framework integrates Gaussian Process (GP) regression with Expected Improvement acquisition function to systematically explore the composition space while minimizing experimental trials. Our approach implements a dual-fallback architecture combining hardware/simulation modes for voltage measurements and AFLOW database/Vegard's law for bandgap calculations, allowing demonstration of benefits of this framework across multiple environments. Using iterative closed-loop optimization, we identify the optimal composition achieving an open-circuit voltage of \SI{0.855}{\volt}, representing an \SI{11.2}{\percent} improvement over random sampling with sub-\SI{20}{\milli\volt} prediction accuracy and RMSE: \SI{0.019}{\volt}) with only 10 experimental measurements. Our work demonstrates effectiveness of machine learning-guided materials optimization for photovoltaic applications and provides a highly modular hardware-software platform for autonomous materials discovery.
+We present a machine-learning based framework using Gaussian Regression with Bayesian Optimization to accelerate the discovery of optimal semiconductor compositions in dye-sensitized solar cells (DSSCs). Using the LEGOLAS (LEGO-based Low-cost Autonomous Scientist) platform, we demonstrate efficient optimization of \znsse{} alloy composition for photoanode applications. This fully closed loop framework integrates Gaussian Process (GP) regression with Expected Improvement acquisition function to systematically explore the composition space while minimizing experimental trials. Our approach implements a dual-fallback architecture combining hardware/simulation modes for voltage measurements and AFLOW database/Vegard's law for bandgap calculations, allowing demonstration of benefits of this framework across multiple environments. Using iterative closed-loop optimization, we identify the optimal composition achieving an open-circuit voltage of \SI{0.855}{\volt}, representing an \SI{11.2}{\percent} improvement over random sampling with sub-\SI{20}{\milli\volt} prediction accuracy and RMSE: \SI{0.019}{\volt}) with only 10 experimental measurements. Our work demonstrates effectiveness of machine learning-guided materials optimization for photovoltaic applications and provides a highly modular hardware-software platform for autonomous materials discovery.
 \end{abstract}
 
 \section{Introduction}
@@ -81,7 +81,7 @@ We present a machine-learning based framework using Gaussian Regression with Bay
 Dye-sensitized solar cells (DSSCs) represent a promising alternative to conventional silicon-based photovoltaics, offering low-cost fabrication, transparency, and flexibility. The performance of DSSCs critically depends on the semiconductor photoanode material, which must balance visible light absorption with efficient electron injection from the photoexcited dye molecules. Titanium dioxide has been the benchmark photoanode material, but its wide bandgap (\SI{3.2}{\electronvolt}) limits visible light utilization. 
 \subsection{Motivation for \znsse{} Alloys}
 
-Semiconductor alloying offers a powerful route to tune optical and electronic properties by enabling precise control over material characteristics such as bandgap and conductivity. In the context of dye-sensitized solar cells (DSSC), \znsse solid solutions provide a compositionally adjustable bandgap and conduction-band alignment that can influence electron injection efficiency and dye interaction. This tunability is critical for optimizing charge transfer at the interface between the dye and the semiconductor, which in turn affects overall device performance. By modifying the alloy composition, one can systematically tailor the electronic structure to enhance photocurrent generation and improve compatibility with various sensitizing dyes. 
+Semiconductor alloying offers a powerful route to tune optical and electronic properties by enabling precise control over material characteristics such as bandgap and conductivity. In the context of dye-sensitized solar cells (DSSC), \znsse{} solid solutions provide a compositionally adjustable bandgap and conduction-band alignment that can influence electron injection efficiency and dye interaction. This tunability is critical for optimizing charge transfer at the interface between the dye and the semiconductor, which in turn affects overall device performance. By modifying the alloy composition, one can systematically tailor the electronic structure to enhance photocurrent generation and improve compatibility with various sensitizing dyes. 
 
 Zinc chalcogenide alloys, particularly \znsse, offer tunable bandgaps spanning \SI{2.70}{\electronvolt} (\znse) to \SI{3.68}{\electronvolt} (\zns). This compositional tunability enables optimization of:
 \begin{itemize}[noitemsep]
@@ -107,7 +107,7 @@ Recent applications of such an approach in photovoltaics include organic solar c
 
 \subsection{LEGOLAS Framework}
 
-This work introduces LEGOLAS (Low-cost Educational Guided Optimization Lab for Autonomous Science), an open-source platform for autonomous materials optimization. LEGOLAS integrates:
+This work introduces LEGOLAS (LEGO-based Low-cost Autonomous Scientist), an open-source platform for autonomous materials optimization. LEGOLAS integrates:
 \begin{itemize}[noitemsep]
     \item \textbf{Hardware interface:} Raspberry Pi with MCP3008 ADC for low-cost voltage measurements
     \item \textbf{Computational tools:} AFLOW database integration with Vegard's law bandgap prediction as fallback alternative
@@ -143,9 +143,9 @@ where:
     \item $b = \SI{0.50}{\electronvolt}$ (bowing parameter)
 \end{itemize}
 
-The bowing parameter accounts for non-ideal mixing effects including:
+We use a conservative estimate of bowing parameter to account for non-ideal mixing effects including:
 \begin{itemize}[noitemsep]
-    \item Lattice mismatch between \zns{} (3.82~\AA) and \znse{} (5.67~\AA)
+    \item Lattice mismatch between \zns{} (5.41~\AA) and \znse{} (5.67~\AA)
     \item Chemical disorder in random alloys
     \item Volume deformation effects
 \end{itemize}
@@ -160,7 +160,7 @@ Figure~\ref{fig:vegard_law} shows the calculated bandgap vs. composition, demons
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=\columnwidth]{figures/figure1_vegard_law.pdf}
+\includegraphics[width=\columnwidth]{figures/vegard_law_bandgap.pdf}
 \caption{Vegard's law with bowing parameter for \znsse{} alloy system. The bandgap varies nonlinearly from \SI{3.68}{\electronvolt} (\zns) to \SI{2.70}{\electronvolt} (\znse) with maximum bowing at $x_{\text{Se}} = 0.5$. The \tio{} reference line (\SI{3.2}{\electronvolt}) shows the benchmark photoanode material.}
 \label{fig:vegard_law}
 \end{figure}
@@ -255,7 +255,7 @@ The LEGOLAS system consists of following main components (Figure~\ref{fig:hardwa
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=\columnwidth]{figures/figure6_hardware_diagram.pdf}
+\includegraphics[width=\columnwidth]{figures/hardware_diagram.pdf}
 \caption{LEGOLAS hardware architecture diagram. The system integrates a Raspberry Pi 4 microcontroller with MCP3008 ADC for voltage measurements, connected to a DSSC test cell with \znsse{} photoanode. A solar simulator provides AM1.5G illumination, while the control software executes the Gaussian regression and Bayesian optimization loop.}
 \label{fig:hardware_diagram}
 \end{figure}
@@ -282,7 +282,7 @@ Figure~\ref{fig:rpi_connections} shows the detailed wiring connections between t
 \begin{itemize}[noitemsep]
     \item \textbf{Photoanode:} \znsse{} nanoparticles on FTO glass (\SI{2}{\micro\meter} thickness)
     \item \textbf{Dye:} Natural blackberry extract (anthocyanin-based)
-    \item \textbf{Electrolyte:} \ce{I-/I3-} redox couple in acetonitrile
+    \item \textbf{Electrolyte:} \ce{I^-/I_3^-} redox couple in acetonitrile
     \item \textbf{Counter electrode:} Platinum-coated FTO glass
     \item \textbf{Active area:} \SI{0.25}{\centi\meter\squared}
 \end{itemize}
@@ -373,10 +373,12 @@ The complete LEGOLAS optimization workflow is presented in Algorithm~\ref{alg:le
 \caption{LEGOLAS Bayesian Optimization}
 \label{alg:legolas}
 \begin{algorithmic}[1]
-\REQUIRE Number of iterations $N$, initial samples $N_0$, exploration parameter $\xi$
+\REQUIRE Number of iterations $N$, initial samples $N_0$, exploration parameter $\xi$, candidates $M$
 \ENSURE Optimal composition $x^*$ and voltage $V^*$
 \STATE Initialize empty datasets: $\mathcal{X}_E = \{\}$ (bandgaps), $\mathcal{Y} = \{\}$ (voltages)
 \STATE Initialize composition history: $\mathcal{X}_x = \{\}$
+\STATE Pre-compute candidates: $\{x_1, \ldots, x_M\} \in [0,1]$ \COMMENT{Computed once}
+\STATE Pre-compute bandgaps: $\{E_{g,1}, \ldots, E_{g,M}\}$ \COMMENT{Deterministic}
 \FOR{$i = 1$ to $N_0$}
     \STATE $x_{\text{Se}} \sim \text{Uniform}(0, 1)$ \COMMENT{Random exploration}
     \STATE $E_g = \text{compute\_bandgap}(x_{\text{Se}})$
@@ -387,9 +389,7 @@ The complete LEGOLAS optimization workflow is presented in Algorithm~\ref{alg:le
 \ENDFOR
 \STATE Train GP model: $\text{GP}(\mathcal{X}_E, \mathcal{Y})$ \COMMENT{Initial model}
 \FOR{$i = N_0 + 1$ to $N$}
-    \STATE Generate candidates: $\{x_1, \ldots, x_M\} \in [0,1]$
-    \STATE Compute bandgaps: $\{E_{g,1}, \ldots, E_{g,M}\}$
-    \STATE Evaluate EI: $\{\text{EI}(E_{g,1}), \ldots, \text{EI}(E_{g,M})\}$
+    \STATE Evaluate EI: $\{\text{EI}(E_{g,1}), \ldots, \text{EI}(E_{g,M})\}$ \COMMENT{Using pre-computed $E_g$}
     \STATE $j^* = \arg\max_j \text{EI}(E_{g,j})$
     \STATE $x_{\text{Se}}^* = x_{j^*}$
     \STATE $E_g^* = E_{g,j^*}$
@@ -406,10 +406,11 @@ The complete LEGOLAS optimization workflow is presented in Algorithm~\ref{alg:le
 
 Key features:
 \begin{itemize}[noitemsep]
-    \item \textbf{Phase 1 (lines 3--10):} Random exploration builds initial GP model
-    \item \textbf{Phase 2 (lines 12--23):} EI-guided optimization refines search
+    \item \textbf{Pre-computation (lines 3--4):} Candidate grid and bandgaps computed once (not per iteration)
+    \item \textbf{Phase 1 (lines 5--12):} Random exploration builds initial GP model
+    \item \textbf{Phase 2 (lines 14--24):} EI-guided optimization refines search using pre-computed grid
     \item \textbf{Model updating (line 23):} GP retrained after each measurement
-    \item \textbf{Composition mapping (line 14):} Bandgap-to-composition conversion
+    \item \textbf{Composition mapping (line 17):} Bandgap-to-composition conversion
 \end{itemize}
 
 \section{Results and Analysis}
@@ -421,7 +422,7 @@ Figure~\ref{fig:optimization_convergence} shows the optimization trajectory over
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=0.9\textwidth]{figures/figure2_optimization_convergence.pdf}
+\includegraphics[width=0.9\textwidth]{figures/optimization_convergence_trajectory.pdf}
 \caption{Optimization convergence trajectory. \textbf{Panel A:} Open-circuit voltage vs. iteration number. Orange points indicate random exploration (iterations 1-4), while blue points show GP-guided optimization (iterations 5-10). \textbf{Panel B:} Composition space exploration showing measured points color-coded by iteration. The optimal composition (\zns, $x_{\text{Se}} = 0$) is identified by iteration 9.}
 \label{fig:optimization_convergence}
 \end{figure*}
@@ -432,7 +433,7 @@ Figure~\ref{fig:optimization_convergence} shows the optimization trajectory over
     \item \textbf{Initial voltage:} \SI{0.769}{\volt} (random sample, iteration 1)
     \item \textbf{Improvement:} \SI{+11.2}{\percent} over initial best
     \item \textbf{Total measurements:} 10 (4 random + 6 GP-guided)
-    \item \textbf{Convergence:} Achieved by iteration 7
+    \item \textbf{Convergence:} Optimal region identified by iteration 7 (x_{\text{Se}} < 0.1)
 \end{itemize}
 
 \subsubsection{Comparison with Baseline Methods}
@@ -472,7 +473,7 @@ Figure~\ref{fig:gp_model} visualizes the trained GP model after 10 iterations, s
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=\columnwidth]{figures/figure3_gp_model.pdf}
+\includegraphics[width=\columnwidth]{figures/gp_regression_model.pdf}
 \caption{Gaussian Process regression model trained on 10 bandgap-voltage measurements. The blue line shows the predicted mean $\mu(E_g)$, with 95\% confidence interval (shaded region) indicating prediction uncertainty. Red circles mark experimental measurements. The GP model accurately captures the monotonic voltage-bandgap relationship with sub-\SI{20}{\milli\volt} RMSE.}
 \label{fig:gp_model}
 \end{figure}
@@ -491,7 +492,7 @@ Figure~\ref{fig:composition_space} maps the complete composition space ($x_{\tex
 
 \begin{figure*}[ht]
 \centering
-\includegraphics[width=0.9\textwidth]{figures/figure4_composition_space.pdf}
+\includegraphics[width=0.9\textwidth]{figures/composition_space_exploration.pdf}
 \caption{Complete composition space mapping. \textbf{Panel A:} Bandgap vs. Se composition showing Vegard's law with bowing (blue line) and \tio{} reference (dashed). \textbf{Panel B:} Open-circuit voltage vs. composition with error bars representing measurement uncertainty. The optimal ZnS-rich region ($x_{\text{Se}} < 0.1$) achieves maximum voltage due to wide band gap and favorable conduction band alignment.}
 \label{fig:composition_space}
 \end{figure*}
@@ -517,10 +518,6 @@ x_{\text{Se}}^* = 0.000 \pm 0.005 \quad \Rightarrow \quad \ce{ZnS1.00Se0.00}
 \end{equation}
 
 This result is physically reasonable: wider band gap semiconductors produce higher \voc{} due to the increased potential difference with the electrolyte redox couple.
-
-\subsection{Experimental Validation}
-
-Comparing simulated and experimental measurements is critical next step to validate results of synthesized recommended compositions. The hardware-software framework readily supports this validation process and is expected to correlate well with predicted results.
 
 \section{Discussion}
 \label{sec:discussion}
@@ -599,7 +596,7 @@ Bayesian optimization naturally handles these challenges through probabilistic m
 LEGOLAS is designed for accessibility in undergraduate laboratories:
 \begin{itemize}[noitemsep]
     \item \textbf{Low cost:} \$50 Raspberry Pi + \$5 MCP3008 ADC
-    \item \textbf{Open source:} Full code available at \url{https://github.com/chordia/legolas-znsse}
+    \item \textbf{Open source:} Full code available at \url{https://github.com/samridhi-chordia/legolas-znsse}
     \item \textbf{Modular design:} Easy adaptation to other material systems
     \item \textbf{Real-time visualization:} Live GP model updates during optimization
     \item \textbf{Pedagogical value:} Teaches machine learning, materials science, and electrochemistry
@@ -671,7 +668,7 @@ Emmerich, M. T., Deutz, A. H., \& Klinkenberg, J. W. (2011). Hypervolume-based e
 NSF Center for Innovation in Solar Fuels, California Institute of Technology. (2025). Solar energy conversion: Making a dye-sensitized solar cell. Available at: \url{https://www.scribd.com/document/485182350/example-DSSC-with-berry-1}
 
 \bibitem{saar2023legolas}
-Saar, L. (2023). Low-cost educational guided optimization lab for autonomous science (LEGOLAS). \textit{MRS Bulletin}, 48, 156--161. \url{https://link.springer.com/article/10.1557/s43577-022-00430-2}
+Saar, L. (2023). LEGO-based Low-cost Autonomous Scientist (LEGOLAS). \textit{MRS Bulletin}, 48, 156--161. \url{https://link.springer.com/article/10.1557/s43577-022-00430-2}
 
 \end{thebibliography}
 
