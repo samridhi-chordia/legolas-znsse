@@ -28,11 +28,19 @@ python demo.py --save-figures --save-data
 # Custom output directory
 python demo.py --save-figures --save-data --output-dir results_2025
 
+# Use hardware mode with AFLOW bandgaps
+python demo.py --mode hardware --egap_method aflow
+
+# Use hardware with fallback to simulation
+python demo.py --mode hardware_with_fallback --egap_method vegard
+
 Command-line Arguments:
 -----------------------
---save-figures     Save figures to paper/figures/ (default: display only)
---save-data        Export CSV data to paper/data/ (default: no export)
---output-dir DIR   Output directory for figures/data (default: paper)
+--save-figures         Save figures to paper/figures/ (default: display only)
+--save-data            Export CSV data to paper/data/ (default: no export)
+--output-dir DIR       Output directory for figures/data (default: paper)
+--mode MODE            Measurement mode: simulated (default), hardware, or hardware_with_fallback
+--egap_method METHOD   Bandgap calculation: vegard (default), aflow, or aflow_with_fallback
 """
 
 import argparse
@@ -66,6 +74,20 @@ def parse_args():
         default='paper',
         help='Output directory for figures and data (default: paper)'
     )
+    parser.add_argument(
+        '--mode',
+        type=str,
+        choices=['simulated', 'hardware', 'hardware_with_fallback'],
+        default='simulated',
+        help='Measurement mode: simulated (default), hardware, or hardware_with_fallback'
+    )
+    parser.add_argument(
+        '--egap_method',
+        type=str,
+        choices=['vegard', 'aflow', 'aflow_with_fallback'],
+        default='vegard',
+        help='Bandgap calculation method: vegard (default), aflow, or aflow_with_fallback'
+    )
     return parser.parse_args()
 
 
@@ -76,11 +98,11 @@ def print_header(title: str):
     print("="*60 + "\n")
 
 
-def demo_interface():
+def demo_interface(mode='simulated', egap_method='vegard'):
     """Demonstrate ZnSSe interface capabilities."""
     print_header("PART 1: ZnS(1-x)Se(x) Material Properties")
 
-    interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+    interface = ZnSSeInterface(mode=mode, egap_method=egap_method)
 
     # Test compositions matching paper (x = 0.0, 0.25, 0.75, 1.0)
     test_compositions = [0.0, 0.25, 0.50, 0.75, 1.0]
@@ -103,12 +125,13 @@ def demo_interface():
     print("  • Bowing parameter: 0.50 eV")
 
 
-def demo_optimization(save_figures=False, save_data=False, output_dir='results'):
+def demo_optimization(save_figures=False, save_data=False, output_dir='results',
+                      mode='simulated', egap_method='vegard'):
     """Run Gaussian Process optimization."""
     print_header("PART 2: Bayesian Optimization with Gaussian Process")
 
     # Initialize interface and optimizer
-    interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+    interface = ZnSSeInterface(mode=mode, egap_method=egap_method)
     optimizer = GPOptimizer(interface, xi=0.01, random_state=42,
                            save_figures=save_figures, save_data=save_data, output_dir=output_dir)
 
@@ -215,11 +238,12 @@ def analyze_results(optimizer: GPOptimizer, results_df: pd.DataFrame):
         print(f"  RMSE: {rmse:.4f} V")
 
 
-def demo_full_exploration(save_data=False, data_dir=None, save_figures=False, fig_dir=None):
+def demo_full_exploration(save_data=False, data_dir=None, save_figures=False, fig_dir=None,
+                          mode='simulated', egap_method='vegard'):
     """Create full composition-bandgap-voltage map."""
     print_header("PART 4: Full Composition Space Exploration")
 
-    interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+    interface = ZnSSeInterface(mode=mode, egap_method=egap_method)
 
     # Export CSV data if requested
     if save_data and data_dir is not None:
@@ -406,13 +430,15 @@ def main():
 
     try:
         # Part 1: Demonstrate material properties
-        demo_interface()
+        demo_interface(mode=args.mode, egap_method=args.egap_method)
 
         # Part 2: Run optimization (pass save flags)
         optimizer, results_df = demo_optimization(
             save_figures=args.save_figures,
             save_data=args.save_data,
-            output_dir=str(output_dir)
+            output_dir=str(output_dir),
+            mode=args.mode,
+            egap_method=args.egap_method
         )
 
         # Part 3: Analyze results
@@ -423,7 +449,9 @@ def main():
             save_data=args.save_data,
             data_dir=data_dir,
             save_figures=args.save_figures,
-            fig_dir=fig_dir
+            fig_dir=fig_dir,
+            mode=args.mode,
+            egap_method=args.egap_method
         )
 
         # Final summary
