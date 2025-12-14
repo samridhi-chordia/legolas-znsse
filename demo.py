@@ -212,9 +212,9 @@ def demo_optimization(save_figures=False, save_data=False, output_dir='results',
     # Run optimization
     results_df = optimizer.optimize(n_iterations=10, n_initial=4)
 
-    # Save results (always save to results/ for backwards compatibility)
-    results_dir = Path(__file__).parent / 'results'
-    results_dir.mkdir(exist_ok=True)
+    # Save results to output_dir
+    results_dir = Path(output_dir)
+    results_dir.mkdir(parents=True, exist_ok=True)
     results_path = results_dir / 'optimization_results.csv'
     results_df.to_csv(results_path, index=False)
     print(f"\nResults saved to: {results_path}")
@@ -237,7 +237,7 @@ def demo_optimization(save_figures=False, save_data=False, output_dir='results',
         optimizer.plot_results(save_path=str(gp_path_pdf))
         optimizer.plot_results(save_path=str(gp_path_png))
     else:
-        # Backwards compatibility - save to results/
+        # Save basic plot to output_dir
         fig_path = results_dir / 'optimization_plot.png'
         optimizer.plot_results(save_path=str(fig_path))
 
@@ -460,9 +460,15 @@ def demo_full_exploration(save_data=False, data_dir=None, save_figures=False, fi
         plt.savefig(comp_path_png, dpi=150, bbox_inches='tight')
         print(f"Composition space map saved to: {comp_path_pdf} and {comp_path_png}")
     else:
-        results_dir = Path(__file__).parent / 'results'
-        results_dir.mkdir(exist_ok=True)
-        fig_path = results_dir / 'composition_space_map.png'
+        # Use output_dir (parent of data_dir or fig_dir) or default to current directory
+        if fig_dir is not None:
+            output_base = fig_dir.parent
+        elif data_dir is not None:
+            output_base = data_dir.parent
+        else:
+            output_base = Path('paper')  # default output directory
+        output_base.mkdir(parents=True, exist_ok=True)
+        fig_path = output_base / 'composition_space_map.png'
         plt.savefig(fig_path, dpi=150, bbox_inches='tight')
         print(f"Composition space map saved to: {fig_path}")
 
@@ -574,9 +580,9 @@ def main():
                 print(f"  Figures: {fig_dir}/")
             if args.save_data:
                 print(f"  Data CSV files: {data_dir}/")
-        print("  • results/optimization_results.csv")
-        print("  • results/optimization_plot.png")
-        print("  • results/composition_space_map.png")
+        print(f"  • {output_dir}/optimization_results.csv")
+        print(f"  • {output_dir}/optimization_plot.png")
+        print(f"  • {output_dir}/composition_space_map.png")
 
         print("\nKey findings:")
         print("  • GP-based optimization efficiently finds optimal composition")
