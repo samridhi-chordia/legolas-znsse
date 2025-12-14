@@ -6,7 +6,7 @@ This document traces the **exact sequence of function calls** when running `pyth
 
 **Purpose**: Educational guide to LEGOLAS system architecture and execution
 
-**Last Updated**: November 2025
+**Last Updated**: December 2025
 
 ---
 
@@ -15,24 +15,52 @@ This document traces the **exact sequence of function calls** when running `pyth
 1. [Quick Reference](#quick-reference)
 2. [Entry Point](#entry-point)
 3. [Execution Flow - Complete Sequence](#execution-flow---complete-sequence)
-4. [Part 1: Material Properties Demo](#part-1-material-properties-demo)
-5. [Part 2: Bayesian Optimization](#part-2-bayesian-optimization)
-6. [Part 3: Results Analysis](#part-3-results-analysis)
-7. [Part 4: Full Composition Exploration](#part-4-full-composition-exploration)
-8. [Function Reference](#function-reference)
-9. [Data Flow Diagram](#data-flow-diagram)
+4. [Logging System Details](#logging-system-details)
+5. [Part 1: Material Properties Demo](#part-1-material-properties-demo)
+6. [Part 2: Bayesian Optimization](#part-2-bayesian-optimization)
+7. [Part 3: Results Analysis](#part-3-results-analysis)
+8. [Part 4: Full Composition Exploration](#part-4-full-composition-exploration)
+9. [Function Reference](#function-reference)
+10. [Data Flow Diagram](#data-flow-diagram)
 
 ---
 
 ## Quick Reference
 
-**Command**: `python3 demo.py`
+**Command**: `python3 demo.py [OPTIONS]`
+
+**Command-Line Arguments**:
+- `--mode {simulated,hardware,hardware_with_fallback}` - Measurement mode (default: `simulated`)
+- `--egap_method {vegard,aflow,aflow_with_fallback}` - Bandgap calculation method (default: `vegard`)
+- `--save-figures` - Save visualization plots to `paper/figures/`
+- `--save-data` - Export CSV data to `paper/data/`
+- `--output-dir DIR` - Custom output directory (default: `paper`)
+- `--log FILENAME` - Log file name to save execution results (default: `demo.log`)
+
+**Examples**:
+```bash
+# Default: simulated mode with Vegard's law
+python3 demo.py
+
+# Use AFLOW database for bandgaps
+python3 demo.py --egap_method aflow_with_fallback
+
+# Hardware mode with AFLOW bandgaps
+python3 demo.py --mode hardware --egap_method aflow
+
+# Save outputs with custom log file
+python3 demo.py --save-figures --save-data --log my_experiment.log
+
+# Custom log file only
+python3 demo.py --log experiment_20250114.log
+```
 
 **Total Runtime**: ~15-30 seconds (simulated mode)
 
 **Function Calls**: ~150-200 function calls (depending on optimization iterations)
 
 **Output Files**:
+- `demo.log` (default log file, ~274 lines)
 - `results/optimization_results.csv` (14 rows × 7 columns)
 - `results/optimization_plot.png` (2-panel figure)
 - `results/composition_space_map.png` (2-panel figure)
@@ -64,56 +92,255 @@ if __name__ == "__main__":
 main()
 ```
 
-### Level 1: Main Function (`demo.py:236-294`)
+### Level 1: Main Function (`demo.py:474-615`)
 
 ```python
 def main():
     """Run complete LEGOLAS ZnSSe demonstration."""
 
-    # Call sequence:
-    demo_interface()                    # Part 1
-    ↓
-    optimizer, results_df = demo_optimization()  # Part 2
-    ↓
-    analyze_results(optimizer, results_df)       # Part 3
-    ↓
-    demo_full_exploration()             # Part 4
+    # Step 1: Parse command-line arguments
+    args = parse_args()
+
+    # Step 2: Set up logging system
+    logger, file_handler = setup_logging(args.log)
+    # Returns:
+    #   - logger: logging.Logger instance for timestamped execution tracking
+    #   - file_handler: FileHandler for capturing stdout
+
+    # Step 3: Redirect stdout to capture ALL print() output from all modules
+    original_stdout = sys.stdout
+    sys.stdout = TeeStream(file_handler)
+    # TeeStream writes to BOTH console and log file simultaneously
+
+    try:
+        # Step 4: Log execution metadata (timestamped)
+        logger.info("="*60)
+        logger.info("LEGOLAS Demo Execution Started")
+        logger.info(f"Command: {' '.join(sys.argv)}")
+        logger.info(f"Timestamp: {datetime.now()}")
+        logger.info(f"Log file: {args.log}")
+        logger.info("Command-line arguments: mode={}, egap_method={}, ..."
+                   .format(args.mode, args.egap_method))
+        logger.info("")
+
+        # Step 5: Call sequence (all functions receive mode and egap_method)
+        logger.info("Starting Part 1: Material Properties Demo")
+        demo_interface(mode=args.mode, egap_method=args.egap_method)
+        logger.info("Completed Part 1: Material Properties Demo")
+        ↓
+        logger.info("Starting Part 2: Bayesian Optimization")
+        optimizer, results_df = demo_optimization(
+            mode=args.mode,
+            egap_method=args.egap_method,
+            save_figures=args.save_figures,
+            save_data=args.save_data,
+            output_dir=args.output_dir
+        )
+        logger.info("Completed Part 2: Bayesian Optimization")
+        ↓
+        logger.info("Starting Part 3: Results Analysis")
+        analyze_results(optimizer, results_df)
+        logger.info("Completed Part 3: Results Analysis")
+        ↓
+        logger.info("Starting Part 4: Full Composition Space Exploration")
+        demo_full_exploration(
+            mode=args.mode,
+            egap_method=args.egap_method,
+            save_figures=args.save_figures,
+            save_data=args.save_data,
+            data_dir=args.output_dir
+        )
+        logger.info("Completed Part 4: Full Composition Space Exploration")
+
+        # Step 6: Log completion
+        logger.info(f"Execution completed at: {datetime.now()}")
+
+    except KeyboardInterrupt:
+        logger.error("Demo interrupted by user (KeyboardInterrupt)")
+    except Exception as e:
+        logger.error(f"ERROR: {e}")
+        logger.error(traceback.format_exc())
+    finally:
+        # Step 7: Restore original stdout and flush log
+        sys.stdout = original_stdout
+        for handler in logger.handlers:
+            handler.flush()
 ```
 
 **Control Flow**: Sequential execution (no parallelization)
 
-**Error Handling**: Try/except wrapper catches KeyboardInterrupt and general exceptions
+**Error Handling**: Try/except/finally wrapper catches all errors and ensures stdout is restored
+
+**Logging System**:
+- **TeeStream**: Custom stream handler that writes to both console and log file
+- **Dual Logging**: Timestamped execution tracking + all stdout output
+- **Log Format**:
+  - Timestamped entries: `2025-12-14 20:13:12 - INFO - Starting Part 1...`
+  - Plain text entries: All `print()` output from demo.py, znsse_interface.py, gp_optimizer.py
+
+**Key Features**:
+- All ZnSSeInterface instantiations use mode and egap_method from CLI arguments
+- All output captured in log file (default: `demo.log`)
+- Stdout redirection ensures NO output is lost
+- Proper cleanup in finally block guarantees stdout restoration
+
+---
+
+## Logging System Details
+
+### TeeStream Class (`demo.py:60-83`)
+
+**Purpose**: Capture all print() output from all modules to both console and log file
+
+```python
+class TeeStream:
+    """Stream that writes to both stdout and a log file."""
+
+    def __init__(self, log_file_handler):
+        self.terminal = sys.stdout
+        self.log_handler = log_file_handler
+
+    def write(self, message):
+        # Write to console
+        self.terminal.write(message)
+        self.terminal.flush()
+
+        # Write to log file (preserves all formatting)
+        if self.log_handler and message:
+            self.log_handler.stream.write(message)
+            self.log_handler.stream.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        if self.log_handler:
+            self.log_handler.stream.flush()
+```
+
+**How It Works**:
+1. Replaces `sys.stdout` during execution
+2. Every `print()` call (from any module) goes through `TeeStream.write()`
+3. Message written to BOTH console and log file
+4. Preserves all newlines, formatting, and special characters
+
+### setup_logging Function (`demo.py:129-161`)
+
+**Purpose**: Initialize logging system and return handlers
+
+```python
+def setup_logging(log_file: str):
+    """Set up logging to both file and console."""
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.handlers.clear()
+
+    # Create formatter for timestamped entries
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # File handler
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    return logger, file_handler
+```
+
+**Returns**:
+- `logger`: For timestamped execution tracking (e.g., "Starting Part 1...")
+- `file_handler`: For TeeStream stdout redirection
+
+### Log File Structure
+
+**Example log file (demo.log):**
+
+```
+2025-12-14 20:13:12 - INFO - ============================================================
+2025-12-14 20:13:12 - INFO - LEGOLAS Demo Execution Started
+2025-12-14 20:13:12 - INFO - ============================================================
+2025-12-14 20:13:12 - INFO - Command: demo.py --mode simulated --egap_method vegard
+2025-12-14 20:13:12 - INFO - Timestamp: 2025-12-14 20:13:12
+2025-12-14 20:13:12 - INFO - Log file: demo.log
+2025-12-14 20:13:12 - INFO - ============================================================
+2025-12-14 20:13:12 - INFO -
+2025-12-14 20:13:12 - INFO - Command-line arguments:
+2025-12-14 20:13:12 - INFO -   --mode: simulated
+2025-12-14 20:13:12 - INFO -   --egap_method: vegard
+2025-12-14 20:13:12 - INFO -   --save-figures: False
+2025-12-14 20:13:12 - INFO -   --save-data: False
+2025-12-14 20:13:12 - INFO -   --output-dir: paper
+2025-12-14 20:13:12 - INFO -   --log: demo.log
+2025-12-14 20:13:12 - INFO -
+
+============================================================
+LEGOLAS: ZnS(1-x)Se(x) DSSC Optimization
+============================================================
+
+LEGO based Low cost Autonomous Scientist
+[... rest of stdout output ...]
+
+2025-12-14 20:13:12 - INFO - Starting Part 1: Material Properties Demo
+
+[... Part 1 output ...]
+
+2025-12-14 20:13:12 - INFO - Completed Part 1: Material Properties Demo
+2025-12-14 20:13:12 - INFO -
+2025-12-14 20:13:12 - INFO - Starting Part 2: Bayesian Optimization
+
+[... and so on ...]
+
+2025-12-14 20:13:14 - INFO -
+2025-12-14 20:13:14 - INFO - Execution completed at: 2025-12-14 20:13:14
+2025-12-14 20:13:14 - INFO - ============================================================
+```
+
+**Total Lines**: ~274 lines (no duplicates)
+
+**Content**:
+- **Timestamped entries** (via `logger.info()`): Execution milestones
+- **Plain text entries** (via TeeStream): All print() output from all modules
+- **No duplicates**: Each message appears exactly once
 
 ---
 
 ## Part 1: Material Properties Demo
 
-### Function: `demo_interface()` (`demo.py:42-67`)
+### Function: `demo_interface(mode='simulated', egap_method='vegard')` (`demo.py:42-67`)
 
 **Purpose**: Demonstrate ZnSSe material interface capabilities
 
 **Duration**: ~0.5 seconds
 
+**Parameters**:
+- `mode`: Measurement mode from CLI (default: 'simulated')
+- `egap_method`: Bandgap calculation method from CLI (default: 'vegard')
+
 #### Call Sequence:
 
 ```
-1. demo_interface()
+1. demo_interface(mode=args.mode, egap_method=args.egap_method)
    ├─ print_header("PART 1: ZnS(1-x)Se(x) Material Properties")
    │
-   ├─ ZnSSeInterface.__init__(mode='hardware_with_fallback', egap_method='aflow_with_fallback')
-   │  ├─ AFLOWInterface.__init__()  [if AFLOW_AVAILABLE]
+   ├─ ZnSSeInterface.__init__(mode=mode, egap_method=egap_method)
+   │  ├─ AFLOWInterface.__init__()  [if egap_method uses 'aflow' and AFLOW_AVAILABLE]
    │  │  └─ Initializes: base_url, timeout=30, cache={}
    │  │
-   │  ├─ _init_hardware()  [attempts hardware initialization]
+   │  ├─ _init_hardware()  [if mode uses 'hardware']
    │  │  ├─ import spidev, RPi.GPIO  [ImportError expected on non-RPi]
-   │  │  └─ Returns: False (hardware unavailable)
+   │  │  └─ Returns: True/False (hardware available/unavailable)
    │  │
-   │  └─ Fallback: self.mode = 'simulated'
+   │  └─ Fallback behavior depends on mode:
+   │     - 'hardware_with_fallback' → self.mode = 'simulated' if hardware unavailable
+   │     - 'hardware' → raises error if hardware unavailable
+   │     - 'simulated' → no hardware initialization attempted
    │
    └─ FOR x_Se in [0.0, 0.25, 0.50, 0.75, 1.0]:
       ├─ interface.compute_bandgap(x_Se)
       │  ├─ Validates: 0.0 <= x_Se <= 1.0
-      │  ├─ Checks method: 'aflow_with_fallback'
+      │  ├─ Checks method from egap_method parameter
       │  ├─ AFLOWInterface.get_bandgap(x_Se, method='aflow_with_fallback')  [if available]
       │  │  ├─ query_znsse_compounds(x_Se_target=x_Se)
       │  │  │  ├─ requests.get(query_url, timeout=30)
@@ -152,20 +379,27 @@ def main():
 
 ## Part 2: Bayesian Optimization
 
-### Function: `demo_optimization()` (`demo.py:69-93`)
+### Function: `demo_optimization(save_figures=False, save_data=False, output_dir='results', mode='simulated', egap_method='vegard')` (`demo.py:69-93`)
 
 **Purpose**: Run 10-iteration GP-guided optimization
 
 **Duration**: ~5-10 seconds
 
+**Parameters**:
+- `save_figures`: Save plots to file (from CLI)
+- `save_data`: Export CSV data (from CLI)
+- `output_dir`: Output directory (from CLI)
+- `mode`: Measurement mode from CLI (default: 'simulated')
+- `egap_method`: Bandgap calculation method from CLI (default: 'vegard')
+
 #### Call Sequence:
 
 ```
-1. demo_optimization()
+1. demo_optimization(mode=args.mode, egap_method=args.egap_method, ...)
    ├─ print_header("PART 2: Bayesian Optimization with Gaussian Process")
    │
-   ├─ ZnSSeInterface.__init__(mode='hardware_with_fallback', egap_method='aflow_with_fallback')
-   │  └─ [Same initialization as Part 1]
+   ├─ ZnSSeInterface.__init__(mode=mode, egap_method=egap_method)
+   │  └─ [Same initialization as Part 1 - uses parameters from CLI]
    │
    ├─ GPOptimizer.__init__(interface, xi=0.01, random_state=42)
    │  ├─ self.interface = interface
@@ -363,20 +597,28 @@ def main():
 
 ## Part 4: Full Composition Exploration
 
-### Function: `demo_full_exploration()` (`demo.py:160-234`)
+### Function: `demo_full_exploration(save_data=False, data_dir=None, save_figures=False, fig_dir=None, mode='simulated', egap_method='vegard')` (`demo.py:160-234`)
 
 **Purpose**: Map entire composition space (0.0 to 1.0)
 
 **Duration**: ~2-5 seconds
 
+**Parameters**:
+- `save_data`: Export CSV data (from CLI)
+- `data_dir`: Data output directory (from CLI)
+- `save_figures`: Save plots to file (from CLI)
+- `fig_dir`: Figure output directory (from CLI)
+- `mode`: Measurement mode from CLI (default: 'simulated')
+- `egap_method`: Bandgap calculation method from CLI (default: 'vegard')
+
 #### Call Sequence:
 
 ```
-1. demo_full_exploration()
+1. demo_full_exploration(mode=args.mode, egap_method=args.egap_method, ...)
    ├─ print_header("PART 4: Full Composition Space Exploration")
    │
-   ├─ ZnSSeInterface.__init__(mode='hardware_with_fallback', egap_method='aflow_with_fallback')
-   │  └─ [Same initialization as before]
+   ├─ ZnSSeInterface.__init__(mode=mode, egap_method=egap_method)
+   │  └─ [Same initialization as before - uses parameters from CLI]
    │
    ├─ x_Se_range = np.linspace(0.0, 1.0, 50)  [50 compositions]
    │
@@ -922,19 +1164,57 @@ aflow_interface.get_bandgap(x_Se, method='aflow_with_fallback')
 
 ```python
 try:
-    # All 4 demo parts execute
-    demo_interface()
-    optimizer, results_df = demo_optimization()
+    # Setup logging and redirect stdout
+    logger, file_handler = setup_logging(args.log)
+    original_stdout = sys.stdout
+    sys.stdout = TeeStream(file_handler)
+
+    # Log execution metadata
+    logger.info("LEGOLAS Demo Execution Started")
+    logger.info(f"Command: {' '.join(sys.argv)}")
+    ...
+
+    # All 4 demo parts execute with logging
+    logger.info("Starting Part 1: Material Properties Demo")
+    demo_interface(mode=args.mode, egap_method=args.egap_method)
+    logger.info("Completed Part 1: Material Properties Demo")
+
+    logger.info("Starting Part 2: Bayesian Optimization")
+    optimizer, results_df = demo_optimization(...)
+    logger.info("Completed Part 2: Bayesian Optimization")
+
+    logger.info("Starting Part 3: Results Analysis")
     analyze_results(optimizer, results_df)
-    demo_full_exploration()
+    logger.info("Completed Part 3: Results Analysis")
+
+    logger.info("Starting Part 4: Full Composition Space Exploration")
+    demo_full_exploration(...)
+    logger.info("Completed Part 4: Full Composition Space Exploration")
+
+    logger.info(f"Execution completed at: {datetime.now()}")
 
 except KeyboardInterrupt:
-    print("Demo interrupted by user.")
+    print("\n\nDemo interrupted by user.")
+    logger.error("Demo interrupted by user (KeyboardInterrupt)")
 
 except Exception as e:
-    print(f"ERROR: {e}")
+    print(f"\n\nERROR: {e}")
+    logger.error(f"ERROR: {e}")
     traceback.print_exc()
+    logger.error(traceback.format_exc())
+
+finally:
+    # Always restore stdout and flush logs
+    sys.stdout = original_stdout
+    for handler in logger.handlers:
+        handler.flush()
 ```
+
+**Key Points**:
+- All exceptions are logged with timestamps
+- Stdout is always restored in `finally` block
+- Log file is flushed before exit
+- Traceback captured in both console and log file
 
 ---
 
@@ -1229,7 +1509,6 @@ def measure_voltage(self, x_Se, light_intensity=1.0):
 - See `README.md` for project overview
 - See `README_INSTALLATION.md` for setup
 - See `README_DEPLOYMENT.md` for production deployment
-- See `README_OVERLEAF.md` for paper compilation
 
 **Code Authors**:
 - Samridhi Chordia

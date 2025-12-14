@@ -18,7 +18,12 @@ This guide covers deployment scenarios for the LEGOLAS ZnS(1-x)Se(x) DSSC optimi
 # Quick deployment
 cd /path/to/LEGOLAS_ZnSSe_AFLOW_RELEASE
 pip install -r requirements.txt
+
+# Run with default settings (simulated mode, Vegard's law)
 python3 demo.py
+
+# Or with AFLOW bandgaps and custom log file
+python3 demo.py --egap_method aflow_with_fallback --log dev_test.log
 ```
 
 **Mode Settings**:
@@ -68,8 +73,11 @@ pip3 install RPi.GPIO spidev
 # 4. Test hardware connection
 python3 -c "import spidev; spi = spidev.SpiDev(); spi.open(0,0); print('SPI OK')"
 
-# 5. Run with hardware
-python3 demo.py
+# 5. Run with hardware (with fallback to simulation)
+python3 demo.py --mode hardware_with_fallback --egap_method aflow_with_fallback
+
+# Or strict hardware mode (fails if hardware unavailable)
+python3 demo.py --mode hardware --egap_method vegard
 ```
 
 **Hardware Wiring**:
@@ -152,7 +160,7 @@ After=network.target
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/LEGOLAS_ZnSSe_AFLOW_RELEASE
-ExecStart=/usr/bin/python3 /home/pi/LEGOLAS_ZnSSe_AFLOW_RELEASE/demo.py
+ExecStart=/usr/bin/python3 /home/pi/LEGOLAS_ZnSSe_AFLOW_RELEASE/demo.py --mode hardware_with_fallback --egap_method aflow_with_fallback --save-data --save-figures --log /home/pi/LEGOLAS_ZnSSe_AFLOW_RELEASE/production.log
 Restart=on-failure
 RestartSec=10s
 
@@ -179,7 +187,7 @@ chmod -R 755 .
 
 # 3. Students access via network
 # Each student runs:
-python3 demo.py --output results_student<ID>.csv
+python3 demo.py --mode simulated --egap_method vegard --save-data --output-dir results_student<ID> --log student<ID>.log
 ```
 
 **Configuration**: Simulated mode for all students
@@ -255,8 +263,8 @@ sudo raspi-config
 # Connect from laptop
 ssh pi@raspberrypi.local
 
-# Run optimization remotely
-python3 /home/pi/LEGOLAS/demo.py
+# Run optimization remotely with hardware
+python3 /home/pi/LEGOLAS/demo.py --mode hardware_with_fallback --egap_method aflow_with_fallback
 ```
 
 **File Transfer**:

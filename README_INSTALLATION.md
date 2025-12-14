@@ -64,8 +64,25 @@ python3 generate_dataset.py
 ### 3. Run Complete Demo
 
 ```bash
+# Basic demo (simulated mode, Vegard's law)
 python3 demo.py
+
+# Use AFLOW database for bandgaps
+python3 demo.py --egap_method aflow_with_fallback
+
+# Hardware mode with AFLOW bandgaps
+python3 demo.py --mode hardware --egap_method aflow
+
+# Save outputs
+python3 demo.py --save-figures --save-data
 ```
+
+**Command-Line Options:**
+- `--mode {simulated,hardware,hardware_with_fallback}` - Measurement mode (default: simulated)
+- `--egap_method {vegard,aflow,aflow_with_fallback}` - Bandgap calculation (default: vegard)
+- `--save-figures` - Save plots to paper/figures/
+- `--save-data` - Export CSV data to paper/data/
+- `--log FILENAME` - Log file name for execution results (default: demo.log)
 
 **Runs:**
 - Material properties demonstration
@@ -114,12 +131,15 @@ LEGOLAS_ZnSSe/
 ```python
 from znsse_interface import ZnSSeInterface
 
-# Initialize
-interface = ZnSSeInterface(mode='simulated')
+# Initialize - simulated mode with Vegard's law (default)
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+
+# Or use AFLOW database for bandgaps
+# interface = ZnSSeInterface(mode='simulated', egap_method='aflow_with_fallback')
 
 # Calculate bandgap
 Eg = interface.compute_bandgap(x_Se=0.30)
-print(f"Bandgap: {Eg:.2f} eV")  # 3.27 eV
+print(f"Bandgap: {Eg:.2f} eV")  # 3.27 eV (Vegard's law)
 
 # Measure voltage
 result = interface.measure_voltage(x_Se=0.30)
@@ -132,8 +152,9 @@ print(f"Voc: {result['Voc_V']:.3f} V")
 from znsse_interface import ZnSSeInterface
 from gp_optimizer import GPOptimizer
 
-# Setup
-interface = ZnSSeInterface(mode='simulated')
+# Setup with chosen mode and bandgap method
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+# Or: interface = ZnSSeInterface(mode='simulated', egap_method='aflow_with_fallback')
 optimizer = GPOptimizer(interface)
 
 # Optimize
@@ -150,7 +171,7 @@ print(f"Voc: {results.loc[best_idx, 'Voc_V']:.3f} V")
 ```python
 from znsse_interface import ZnSSeInterface
 
-interface = ZnSSeInterface(mode='simulated')
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
 
 # Test specific compositions
 compositions = [0.0, 0.25, 0.50, 0.75, 1.0]
@@ -184,7 +205,14 @@ for x_Se in compositions:
 **Enable Hardware Mode:**
 
 ```python
-interface = ZnSSeInterface(mode='hardware')
+# Strict hardware mode (fails if hardware unavailable)
+interface = ZnSSeInterface(mode='hardware', egap_method='vegard')
+
+# Hardware with fallback to simulation (recommended)
+interface = ZnSSeInterface(mode='hardware_with_fallback', egap_method='vegard')
+
+# Hardware mode with AFLOW bandgaps
+interface = ZnSSeInterface(mode='hardware_with_fallback', egap_method='aflow_with_fallback')
 # Automatically initializes MCP3008 via SPI
 ```
 
@@ -254,7 +282,7 @@ import matplotlib.pyplot as plt
 print("✓ All modules imported successfully")
 
 # Quick test
-interface = ZnSSeInterface(mode='simulated')
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
 Eg = interface.compute_bandgap(0.5)
 assert 3.0 < Eg < 3.1, f"Bandgap calculation failed: {Eg}"
 print(f"✓ Bandgap calculation correct: {Eg:.2f} eV")

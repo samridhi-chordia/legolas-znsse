@@ -41,9 +41,13 @@ Command-line Arguments:
 --output-dir DIR       Output directory for figures/data (default: paper)
 --mode MODE            Measurement mode: simulated (default), hardware, or hardware_with_fallback
 --egap_method METHOD   Bandgap calculation: vegard (default), aflow, or aflow_with_fallback
+--log FILENAME         Log file name to save results (default: demo.log)
 """
 
 import argparse
+import logging
+import sys
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -51,6 +55,32 @@ from pathlib import Path
 
 from znsse_interface import ZnSSeInterface
 from gp_optimizer import GPOptimizer
+
+
+class TeeStream:
+    """
+    Stream that writes to both stdout and a log file.
+    This captures all print() output from all modules.
+    """
+    def __init__(self, log_file_handler):
+        self.terminal = sys.stdout
+        self.log_handler = log_file_handler
+
+    def write(self, message):
+        # Write to terminal
+        self.terminal.write(message)
+        self.terminal.flush()
+
+        # Write to log file (plain text, no timestamp for stdout captures)
+        # Write ALL messages including newlines to preserve formatting
+        if self.log_handler and message:
+            self.log_handler.stream.write(message)
+            self.log_handler.stream.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        if self.log_handler:
+            self.log_handler.stream.flush()
 
 
 def parse_args():
@@ -88,7 +118,48 @@ def parse_args():
         default='vegard',
         help='Bandgap calculation method: vegard (default), aflow, or aflow_with_fallback'
     )
+    parser.add_argument(
+        '--log',
+        type=str,
+        default='demo.log',
+        help='Log file name to save results (default: demo.log)'
+    )
     return parser.parse_args()
+
+
+def setup_logging(log_file: str):
+    """
+    Set up logging to both file and console.
+
+    Parameters:
+    -----------
+    log_file : str
+        Path to the log file
+
+    Returns:
+    --------
+    tuple: (logger, file_handler) for use with TeeStream
+    """
+    # Create logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # Remove any existing handlers
+    logger.handlers.clear()
+
+    # Create formatters
+    file_formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # File handler - will be used for both logger.info() and stdout redirection
+    file_handler = logging.FileHandler(log_file, mode='w')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    logger.addHandler(file_handler)
+
+    return logger, file_handler
 
 
 def print_header(title: str):
@@ -406,33 +477,61 @@ def main():
     # Parse command-line arguments
     args = parse_args()
 
-    # Setup output paths if saving is enabled
-    output_dir = Path(args.output_dir)
-    fig_dir = output_dir / 'figures'
-    data_dir = output_dir / 'data'
+    # Set up logging - returns both logger and file handler
+    logger, file_handler = setup_logging(args.log)
 
-    if args.save_figures:
-        fig_dir.mkdir(parents=True, exist_ok=True)
-        print(f"✓ Figures will be saved to: {fig_dir}")
-
-    if args.save_data:
-        data_dir.mkdir(parents=True, exist_ok=True)
-        print(f"✓ Data will be saved to: {data_dir}")
-
-    print("\n" + "="*60)
-    print("LEGOLAS: ZnS(1-x)Se(x) DSSC Optimization")
-    print("="*60)
-    print("\nLow-cost Educational Guided Optimization Lab")
-    print("for Autonomous Science")
-    print("\nBased on: Chordia, Lee, & Oses (2025)")
-    print("Johns Hopkins University")
-    print("="*60)
+    # Redirect stdout to capture all print() statements from all modules
+    original_stdout = sys.stdout
+    sys.stdout = TeeStream(file_handler)
 
     try:
+        # Log the command that was used to run this script
+        command_line = ' '.join(sys.argv)
+        logger.info("="*60)
+        logger.info("LEGOLAS Demo Execution Started")
+        logger.info("="*60)
+        logger.info(f"Command: {command_line}")
+        logger.info(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info(f"Log file: {args.log}")
+        logger.info("="*60)
+        logger.info("")
+        logger.info("Command-line arguments:")
+        logger.info(f"  --mode: {args.mode}")
+        logger.info(f"  --egap_method: {args.egap_method}")
+        logger.info(f"  --save-figures: {args.save_figures}")
+        logger.info(f"  --save-data: {args.save_data}")
+        logger.info(f"  --output-dir: {args.output_dir}")
+        logger.info(f"  --log: {args.log}")
+        logger.info("")
+
+        # Setup output paths if saving is enabled
+        output_dir = Path(args.output_dir)
+        fig_dir = output_dir / 'figures'
+        data_dir = output_dir / 'data'
+
+        if args.save_figures:
+            fig_dir.mkdir(parents=True, exist_ok=True)
+            print(f"✓ Figures will be saved to: {fig_dir}")
+
+        if args.save_data:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            print(f"✓ Data will be saved to: {data_dir}")
+
+        print("\n" + "="*60)
+        print("LEGOLAS: ZnS(1-x)Se(x) DSSC Optimization")
+        print("="*60)
+        print("\nLEGO based Low cost Autonomous Scientist")
+        print("\nBased on: Chordia, Lee, & Oses (2025)")
+        print("Johns Hopkins University")
+        print("="*60)
         # Part 1: Demonstrate material properties
+        logger.info("Starting Part 1: Material Properties Demo")
         demo_interface(mode=args.mode, egap_method=args.egap_method)
+        logger.info("Completed Part 1: Material Properties Demo")
+        logger.info("")
 
         # Part 2: Run optimization (pass save flags)
+        logger.info("Starting Part 2: Bayesian Optimization")
         optimizer, results_df = demo_optimization(
             save_figures=args.save_figures,
             save_data=args.save_data,
@@ -440,11 +539,17 @@ def main():
             mode=args.mode,
             egap_method=args.egap_method
         )
+        logger.info("Completed Part 2: Bayesian Optimization")
+        logger.info("")
 
         # Part 3: Analyze results
+        logger.info("Starting Part 3: Results Analysis")
         analyze_results(optimizer, results_df)
+        logger.info("Completed Part 3: Results Analysis")
+        logger.info("")
 
         # Part 4: Full composition space (pass save flags)
+        logger.info("Starting Part 4: Full Composition Space Exploration")
         demo_full_exploration(
             save_data=args.save_data,
             data_dir=data_dir,
@@ -453,6 +558,8 @@ def main():
             mode=args.mode,
             egap_method=args.egap_method
         )
+        logger.info("Completed Part 4: Full Composition Space Exploration")
+        logger.info("")
 
         # Final summary
         print_header("SUMMARY")
@@ -487,12 +594,25 @@ def main():
         print("Demo completed successfully!")
         print("="*60 + "\n")
 
+        logger.info("")
+        logger.info(f"Execution completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("="*60)
+
     except KeyboardInterrupt:
         print("\n\nDemo interrupted by user.")
+        logger.error("Demo interrupted by user (KeyboardInterrupt)")
     except Exception as e:
         print(f"\n\nERROR: {e}")
+        logger.error(f"ERROR: {e}")
         import traceback
         traceback.print_exc()
+        logger.error(traceback.format_exc())
+    finally:
+        # Restore original stdout
+        sys.stdout = original_stdout
+        # Ensure all file handlers are flushed and closed
+        for handler in logger.handlers:
+            handler.flush()
 
 
 if __name__ == "__main__":

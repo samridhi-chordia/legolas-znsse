@@ -1,6 +1,6 @@
 # LEGOLAS: ZnS₁₋ₓSeₓ DSSC Optimization (AFLOW Integration Version)
 
-**Low-cost Educational Guided Optimization Lab for Autonomous Science**
+**LEGO based Low cost Autonomous Scientist**
 
 Autonomous composition optimization for ZnS₁₋ₓSeₓ dye-sensitized solar cells using Gaussian Process machine learning with **AFLOW Database Integration**.
 
@@ -54,7 +54,20 @@ python3 znsse_interface.py
 ### Run Complete Demo
 
 ```bash
+# Basic demo (simulated mode, Vegard's law)
 python3 demo.py
+
+# Use AFLOW database for bandgap calculations
+python3 demo.py --egap_method aflow
+
+# Use hardware mode with AFLOW bandgaps
+python3 demo.py --mode hardware --egap_method aflow
+
+# Use hardware with fallback to simulation (recommended for real hardware)
+python3 demo.py --mode hardware_with_fallback --egap_method aflow_with_fallback
+
+# Save figures and data
+python3 demo.py --save-figures --save-data --mode simulated --egap_method vegard
 ```
 
 This will:
@@ -62,6 +75,24 @@ This will:
 2. Run Gaussian Process optimization (10 iterations)
 3. Analyze and visualize results
 4. Map full composition space
+
+### Command-Line Arguments
+
+**Measurement Mode** (`--mode`):
+- `simulated` (default): Physics-based simulation, always available
+- `hardware`: MCP3008 ADC + Raspberry Pi, requires hardware setup
+- `hardware_with_fallback`: Try hardware first, fallback to simulation if unavailable
+
+**Bandgap Calculation** (`--egap_method`):
+- `vegard` (default): Vegard's law with bowing parameter, always available
+- `aflow`: AFLOW database DFT-calculated bandgaps, requires API access
+- `aflow_with_fallback`: Try AFLOW first, fallback to Vegard's law if unavailable
+
+**Output Options**:
+- `--save-figures`: Save visualization plots to `paper/figures/`
+- `--save-data`: Export CSV data to `paper/data/`
+- `--output-dir DIR`: Custom output directory (default: `paper`)
+- `--log FILENAME`: Log file name to save execution results (default: `demo.log`)
 
 ---
 
@@ -172,14 +203,20 @@ Return to GP Model Training
 ```python
 from znsse_interface import ZnSSeInterface
 
-# Initialize interface
-interface = ZnSSeInterface(mode='simulated')
+# Initialize interface - simulated mode with Vegard's law
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+
+# Or use AFLOW database for bandgaps
+interface = ZnSSeInterface(mode='simulated', egap_method='aflow_with_fallback')
+
+# Or use hardware measurements
+interface = ZnSSeInterface(mode='hardware_with_fallback', egap_method='vegard')
 
 # Calculate bandgap for composition
 x_Se = 0.30
 Eg = interface.compute_bandgap(x_Se)
 print(f"ZnS0.70Se0.30 bandgap: {Eg:.2f} eV")
-# Output: ZnS0.70Se0.30 bandgap: 3.27 eV
+# Output: ZnS0.70Se0.30 bandgap: 3.27 eV (Vegard's law)
 
 # Measure voltage
 measurement = interface.measure_voltage(x_Se)
@@ -192,8 +229,9 @@ print(f"Voc: {measurement['Voc_V']:.3f} V")
 from znsse_interface import ZnSSeInterface
 from gp_optimizer import GPOptimizer
 
-# Initialize
-interface = ZnSSeInterface(mode='simulated')
+# Initialize with chosen mode and bandgap method
+interface = ZnSSeInterface(mode='simulated', egap_method='vegard')
+# Or use AFLOW: interface = ZnSSeInterface(mode='simulated', egap_method='aflow_with_fallback')
 optimizer = GPOptimizer(interface, xi=0.01)
 
 # Run optimization (10 iterations, 4 initial random)
